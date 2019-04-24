@@ -1,0 +1,7 @@
+build/
+dist/
+*.pyc
+*.cache
+__pycache__
+Pipfile*
+adidnsdump.egg-info/
