@@ -220,8 +220,11 @@ class DNS_RPC_RECORD_TS(Structure):
         ('entombedTime', '<Q'),
     )
     def toDatetime(self):
-        microseconds = self['entombedTime'] / 10.
-        return datetime.datetime(1601,1,1) + datetime.timedelta(microseconds=microseconds)
+        microseconds = int(self['entombedTime'] / 10)
+        try:
+            return datetime.datetime(1601,1,1) + datetime.timedelta(microseconds=microseconds)
+        except OverflowError:
+            return None
 
 def get_dns_zones(connection, root, debug=False):
     connection.search(root, '(objectClass=dnsZone)', search_scope=LEVEL, attributes=['dc'])
@@ -254,9 +257,9 @@ def print_record(record, ts=False):
         rtype = RECORD_TYPE_MAPPING[record['Type']]
     except KeyError:
         rtype = 'Unsupported'
+    print_o('Record entry:')
     if ts:
         print('Record is tombStoned (inactive)')
-    print_o('Record entry:')
     print(' - Type: %d (%s) (Serial: %d)' % (record['Type'], rtype, record['Serial']))
     if record['Type'] == 0:
         tstime = DNS_RPC_RECORD_TS(record['Data'])
@@ -330,8 +333,10 @@ def main():
     parser.add_argument("--zone", help="Zone to search in (if different than the current domain)")
     parser.add_argument("--print-zones", action='store_true', help="Only query all zones on the DNS server, no other modifications are made")
     parser.add_argument("-v", "--verbose", action='store_true', help="Show verbose info")
+    parser.add_argument("-d", "--debug", action='store_true', help="Show debug info")
     parser.add_argument("-r", "--resolve", action='store_true', help="Resolve hidden recoreds via DNS")
     parser.add_argument("--dns-tcp", action='store_true', help="Use DNS over TCP")
+    parser.add_argument("--include-tombstoned", action='store_true', help="Include tombstoned (deleted) records")
 
 
     args = parser.parse_args()
@@ -384,6 +389,7 @@ def main():
         zone = ldap2domain(domainroot)
 
     searchtarget = 'DC=%s,%s' % (zone, dnsroot)
+    print_m('Querying zone for records')
     c.extend.standard.paged_search(searchtarget, '(objectClass=*)', search_scope=LEVEL, attributes=['dnsRecord','dNSTombstoned','name'], paged_size=500, generator=False)
     targetentry = None
     dnsresolver = get_dns_resolver(args.host)
@@ -397,7 +403,8 @@ def main():
             recordname = targetentry['dn'][3:targetentry['dn'].index(searchtarget)-1]
             if not args.resolve:
                 outdata.append({'name':recordname, 'type':'?', 'ip': '?'})
-                print_o('Found hidden record %s' % recordname)
+                if args.verbose:
+                    print_o('Found hidden record %s' % recordname)
             else:
                 # Resolve A query
                 try:
@@ -409,21 +416,29 @@ def main():
                     outdata.append({'name':recordname, 'type':'?', 'ip': '?'})
                     continue
                 ipv4 = str(res.response.answer[0][0])
-                print_o('Resolved hidden record %s' % recordname)
+                if args.verbose:
+                    print_o('Resolved hidden record %s' % recordname)
                 outdata.append({'name':recordname, 'type':'A', 'ip': ipv4})
         else:
             recordname = targetentry['attributes']['name']
-            print_o('Found record %s' % targetentry['attributes']['name'])
+            if args.verbose:
+                print_o('Found record %s' % targetentry['attributes']['name'])
+
+        # Skip tombstoned records unless requested
+        if targetentry['attributes']['dNSTombstoned'] and not args.include_tombstoned:
+            continue
+
         for record in targetentry['raw_attributes']['dnsRecord']:
             dr = DNS_RECORD(record)
             # dr.dump()
             # print targetentry['dn']
-            if args.verbose:
+            if args.debug:
                 print_record(dr, targetentry['attributes']['dNSTombstoned'])
             if dr['Type'] == 1:
                 address = DNS_RPC_RECORD_A(dr['Data'])
                 outdata.append({'name':recordname, 'type':'A', 'ip': address.formatCanonical()})
             continue
+    print_o('Found %d records' % len(outdata))
     with codecs.open('records.csv', 'w', 'utf-8') as outfile:
         outfile.write('type,name,ip\n')
         for row in outdata:
