@@ -6,7 +6,7 @@
 
 By default any user in Active Directory can enumerate all DNS records in the Domain or Forest DNS zones, similar to a zone transfer. This tool enables enumeration and exporting of all DNS records in the zone for recon purposes of internal networks.
 
-For more info, read the [associated blog post](https://dirkjanm.io/).
+For more info, read the [associated blog post](https://dirkjanm.io/getting-in-the-zone-dumping-active-directory-dns-with-adidnsdump/).
 
 # Install and usage
 You can either install the tool via pip with `pip install adidnsdump` or install it from git to have the latest version:
