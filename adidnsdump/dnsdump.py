@@ -442,7 +442,7 @@ def main():
     with codecs.open('records.csv', 'w', 'utf-8') as outfile:
         outfile.write('type,name,ip\n')
         for row in outdata:
-            outfile.write('{type},{name},{ip}\n'.format(**row))
+            outfile.write(u'{type},{name},{ip}\n'.format(**row))
 
 if __name__ == '__main__':
     main()
