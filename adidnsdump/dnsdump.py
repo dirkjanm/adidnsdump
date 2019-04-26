@@ -330,6 +330,7 @@ def main():
     parser.add_argument("-u","--user",type=native_str,metavar='USERNAME',help="DOMAIN\\username for authentication.")
     parser.add_argument("-p","--password",type=native_str,metavar='PASSWORD',help="Password or LM:NTLM hash, will prompt if not specified")
     parser.add_argument("--forest", action='store_true', help="Search the ForestDnsZones instead of DomainDnsZones")
+    parser.add_argument("--legacy", action='store_true', help="Search the System partition (legacy DNS storage)")
     parser.add_argument("--zone", help="Zone to search in (if different than the current domain)")
     parser.add_argument("--print-zones", action='store_true', help="Only query all zones on the DNS server, no other modifications are made")
     parser.add_argument("-v", "--verbose", action='store_true', help="Show verbose info")
@@ -366,18 +367,28 @@ def main():
     if args.forest:
         dnsroot = 'CN=MicrosoftDNS,DC=ForestDnsZones,%s' % forestroot
     else:
-        dnsroot = 'CN=MicrosoftDNS,DC=DomainDnsZones,%s' % domainroot
+        if args.legacy:
+            dnsroot = 'CN=MicrosoftDNS,CN=System,%s' % domainroot
+        else:
+            dnsroot = 'CN=MicrosoftDNS,DC=DomainDnsZones,%s' % domainroot
 
     if args.print_zones:
-        zones = get_dns_zones(c, dnsroot, args.verbose)
+        domaindnsroot = 'CN=MicrosoftDNS,DC=ForestDnsZones,%s' % domainroot
+        zones = get_dns_zones(c, domaindnsroot, args.verbose)
         if len(zones) > 0:
             print_m('Found %d domain DNS zones:' % len(zones))
             for zone in zones:
                 print('    %s' % zone)
-        forestroot = 'CN=MicrosoftDNS,DC=ForestDnsZones,%s' % s.info.other['rootDomainNamingContext'][0]
-        zones = get_dns_zones(c, forestroot, args.verbose)
+        forestdnsroot = 'CN=MicrosoftDNS,DC=ForestDnsZones,%s' % forestroot
+        zones = get_dns_zones(c, forestdnsroot, args.verbose)
         if len(zones) > 0:
             print_m('Found %d forest DNS zones:' % len(zones))
+            for zone in zones:
+                print('    %s' % zone)
+        legacydnsroot = 'CN=MicrosoftDNS,CN=System,%s' % domainroot
+        zones = get_dns_zones(c, legacydnsroot, args.verbose)
+        if len(zones) > 0:
+            print_m('Found %d legacy DNS zones:' % len(zones))
             for zone in zones:
                 print('    %s' % zone)
         return
