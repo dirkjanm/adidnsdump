@@ -340,6 +340,7 @@ def main():
     parser.add_argument("--include-tombstoned", action='store_true', help="Include tombstoned (deleted) records")
     parser.add_argument("--ssl", action='store_true', help="Connect to LDAP server using SSL")
     parser.add_argument("--referralhosts", action='store_true', help="Allow passthrough authentication to all referral hosts")
+    parser.add_argument("--dcfilter", action='store_true', help="Use an alternate filter to identify DNS record types")
 
 
     args = parser.parse_args()
@@ -407,7 +408,8 @@ def main():
 
     searchtarget = 'DC=%s,%s' % (zone, dnsroot)
     print_m('Querying zone for records')
-    c.extend.standard.paged_search(searchtarget, '(objectClass=*)', search_scope=LEVEL, attributes=['dnsRecord','dNSTombstoned','name'], paged_size=500, generator=False)
+    sfilter = '(objectClass=*)' if not args.dcfilter else '(DC=*)'
+    c.extend.standard.paged_search(searchtarget, sfilter, search_scope=LEVEL, attributes=['dnsRecord','dNSTombstoned','name'], paged_size=500, generator=False)
     targetentry = None
     dnsresolver = get_dns_resolver(args.host)
     outdata = []
