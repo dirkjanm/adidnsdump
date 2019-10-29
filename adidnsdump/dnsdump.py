@@ -379,7 +379,7 @@ def main():
             dnsroot = 'CN=MicrosoftDNS,DC=DomainDnsZones,%s' % domainroot
 
     if args.print_zones:
-        domaindnsroot = 'CN=MicrosoftDNS,DC=ForestDnsZones,%s' % domainroot
+        domaindnsroot = 'CN=MicrosoftDNS,DC=DomainDnsZones,%s' % domainroot
         zones = get_dns_zones(c, domaindnsroot, args.verbose)
         if len(zones) > 0:
             print_m('Found %d domain DNS zones:' % len(zones))
