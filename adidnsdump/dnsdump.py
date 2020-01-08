@@ -37,6 +37,7 @@ from ldap3 import NTLM, Server, Connection, ALL, LEVEL, BASE, MODIFY_DELETE, MOD
 import ldap3
 from impacket.ldap import ldaptypes
 import dns.resolver
+import dns.name
 import datetime
 from builtins import str
 from future.utils import itervalues, iteritems, native_str
@@ -435,7 +436,7 @@ def main():
                 # Resolve A query
                 try:
                     res = dnsresolver.query('%s.%s.' % (recordname, zone), 'A', tcp=args.dns_tcp)
-                except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.resolver.Timeout) as e:
+                except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.resolver.Timeout, dns.name.EmptyLabel) as e:
                     if args.verbose:
                         print_f(str(e))
                     print_m('Could not resolve node %s (probably no A record assigned to name)' % recordname)
