@@ -33,7 +33,7 @@ import socket
 import codecs
 from struct import unpack, pack
 from impacket.structure import Structure
-from ldap3 import NTLM, Server, Connection, ALL, LEVEL, BASE, MODIFY_DELETE, MODIFY_ADD, MODIFY_REPLACE
+from ldap3 import NTLM, Server, Connection, ALL, LEVEL, BASE, MODIFY_DELETE, MODIFY_ADD, MODIFY_REPLACE, Tls
 import ldap3
 from impacket.ldap import ldaptypes
 import dns.resolver
@@ -338,6 +338,10 @@ def main():
     parser.add_argument("-r", "--resolve", action='store_true', help="Resolve hidden recoreds via DNS")
     parser.add_argument("--dns-tcp", action='store_true', help="Use DNS over TCP")
     parser.add_argument("--include-tombstoned", action='store_true', help="Include tombstoned (deleted) records")
+    parser.add_argument("--ssl", action='store_true', help="Connect to LDAP server using SSL")
+    parser.add_argument("--referralhosts", action='store_true', help="Allow passthrough authentication to all referral hosts")
+    parser.add_argument("--dcfilter", action='store_true', help="Use an alternate filter to identify DNS record types")
+    parser.add_argument("--sslprotocol", type=native_str, help="SSL version for LDAP connection, can be SSLv23, TLSv1, TLSv1_1 or TLSv1_2")
 
 
     args = parser.parse_args()
@@ -353,6 +357,16 @@ def main():
 
     # define the server and the connection
     s = Server(args.host, get_info=ALL)
+    if args.ssl:
+        s = Server(args.host, get_info=ALL, port=636, use_ssl=True)
+    if args.sslprotocol:
+        v = {'SSLv23' : 2, 'TLSv1' : 3, 'TLSv1_1' : 4, 'TLSv1_2' : 5}
+        if args.sslprotocol not in v.keys():
+            parser.print_help(sys.stderr)
+            sys.exit(1)
+        s = Server(args.host, get_info=ALL, port=636, use_ssl=True, tls=Tls(validate=0, version=v[args.sslprotocol]) )
+    if args.referralhosts:
+        s.allowed_referral_hosts = [('*', True)]
     print_m('Connecting to host...')
     c = Connection(s, user=args.user, password=args.password, authentication=authentication, auto_referrals=False)
     print_m('Binding to host')
@@ -373,7 +387,7 @@ def main():
             dnsroot = 'CN=MicrosoftDNS,DC=DomainDnsZones,%s' % domainroot
 
     if args.print_zones:
-        domaindnsroot = 'CN=MicrosoftDNS,DC=ForestDnsZones,%s' % domainroot
+        domaindnsroot = 'CN=MicrosoftDNS,DC=DomainDnsZones,%s' % domainroot
         zones = get_dns_zones(c, domaindnsroot, args.verbose)
         if len(zones) > 0:
             print_m('Found %d domain DNS zones:' % len(zones))
@@ -401,7 +415,8 @@ def main():
 
     searchtarget = 'DC=%s,%s' % (zone, dnsroot)
     print_m('Querying zone for records')
-    c.extend.standard.paged_search(searchtarget, '(objectClass=*)', search_scope=LEVEL, attributes=['dnsRecord','dNSTombstoned','name'], paged_size=500, generator=False)
+    sfilter = '(objectClass=*)' if not args.dcfilter else '(DC=*)'
+    c.extend.standard.paged_search(searchtarget, sfilter, search_scope=LEVEL, attributes=['dnsRecord','dNSTombstoned','name'], paged_size=500, generator=False)
     targetentry = None
     dnsresolver = get_dns_resolver(args.host)
     outdata = []
