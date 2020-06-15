@@ -328,7 +328,7 @@ def main():
     #Main parameters
     #maingroup = parser.add_argument_group("Main options")
     parser.add_argument("host", type=native_str,metavar='HOSTNAME',help="Hostname/ip or ldap://host:port connection string to connect to")
-    parser.add_argument("-u","--user",type=native_str,metavar='USERNAME',help="DOMAIN\\username for authentication.")
+    parser.add_argument("-u","--user",type=native_str,metavar='USERNAME',help="DOMAIN\\username for authentication. (DOMAIN\username if launched on Windows)")
     parser.add_argument("-p","--password",type=native_str,metavar='PASSWORD',help="Password or LM:NTLM hash, will prompt if not specified")
     parser.add_argument("--forest", action='store_true', help="Search the ForestDnsZones instead of DomainDnsZones")
     parser.add_argument("--legacy", action='store_true', help="Search the System partition (legacy DNS storage)")
