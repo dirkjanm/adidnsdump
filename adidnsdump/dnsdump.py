@@ -341,9 +341,8 @@ def main():
     parser.add_argument("--include-tombstoned", action='store_true', help="Include tombstoned (deleted) records")
     parser.add_argument("--ssl", action='store_true', help="Connect to LDAP server using SSL")
     parser.add_argument("--referralhosts", action='store_true', help="Allow passthrough authentication to all referral hosts")
-    parser.add_argument("--altfilter", type=native_str, help="Use an alternate provided filter to identify DNS record types")
+    parser.add_argument("--dcfilter", action='store_true', help="Use an alternate filter to identify DNS record types")
     parser.add_argument("--sslprotocol", type=native_str, help="SSL version for LDAP connection, can be SSLv23, TLSv1, TLSv1_1 or TLSv1_2")
-    parser.add_argument("--dumpldap", type=native_str, help="Dump all LDAP entries to provided filename")
 
 
     args = parser.parse_args()
@@ -417,16 +416,12 @@ def main():
 
     searchtarget = 'DC=%s,%s' % (zone, dnsroot)
     print_m('Querying zone for records')
-    sfilter = '(|(dn=*)(DC=*)(dc=*)(objectClass=*)(DN=*))' if not args.altfilter else args.altfilter
+    sfilter = '(objectClass=*)' if not args.dcfilter else '(DC=*)'
     c.extend.standard.paged_search(searchtarget, sfilter, search_scope=LEVEL, attributes=['dnsRecord','dNSTombstoned','name'], paged_size=500, generator=False)
     targetentry = None
     dnsresolver = get_dns_resolver(args.host)
     outdata = []
-    if args.dumpldap:
-        outldap = []
     for targetentry in c.response:
-        if args.dumpldap:
-            outldap.append(targetentry)
         if targetentry['type'] != 'searchResEntry':
             print(targetentry)
             continue
@@ -442,12 +437,6 @@ def main():
                 try:
                     res = dnsresolver.query('%s.%s.' % (recordname, zone), 'A', tcp=args.dns_tcp)
                 except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.resolver.Timeout, dns.name.EmptyLabel) as e:
-                    if args.verbose:
-                        print_f(str(e))
-                    print_m('Could not resolve node %s (probably no A record assigned to name)' % recordname)
-                    outdata.append({'name':recordname, 'type':'?', 'ip': '?'})
-                    continue
-                except (dns.name.EmptyLabel) as e:
                     if args.verbose:
                         print_f(str(e))
                     print_m('Could not resolve node %s (probably no A record assigned to name)' % recordname)
@@ -481,10 +470,6 @@ def main():
         outfile.write('type,name,ip\n')
         for row in outdata:
             outfile.write('{type},{name},{ip}\n'.format(**row))
-    if args.dumpldap:
-        import pickle
-        open(args.dumpldap, 'w').write(pickle.dumps(outldap))
-        
 
 if __name__ == '__main__':
     main()
