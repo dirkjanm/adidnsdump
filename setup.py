@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='adidnsdump',
-      version='1.1.0',
+      version='1.2.0',
       description='Active Directory Integrated DNS dumping by any authenticated user',
       license='MIT',
       classifiers=[
@@ -18,7 +18,7 @@ setup(name='adidnsdump',
       author_email='dirkjan.mollema@fox-it.com',
       url='https://github.com/dirkjanm/adidnsdump',
       packages=['adidnsdump'],
-      install_requires=['impacket', 'ldap3==2.5.1'],
+      install_requires=['impacket', 'ldap3>=2.5,!=2.5.2,!=2.5.0,!=2.6'],
       entry_points={
           'console_scripts': ['adidnsdump=adidnsdump:main']
       }
