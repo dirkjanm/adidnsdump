@@ -343,6 +343,7 @@ def main():
     parser.add_argument("--referralhosts", action='store_true', help="Allow passthrough authentication to all referral hosts")
     parser.add_argument("--dcfilter", action='store_true', help="Use an alternate filter to identify DNS record types")
     parser.add_argument("--sslprotocol", type=native_str, help="SSL version for LDAP connection, can be SSLv23, TLSv1, TLSv1_1 or TLSv1_2")
+    parser.add_argument("--include-additional", action='store_true', help="Include additional record types in the output")
 
 
     args = parser.parse_args()
@@ -464,6 +465,21 @@ def main():
             if dr['Type'] == 1:
                 address = DNS_RPC_RECORD_A(dr['Data'])
                 outdata.append({'name':recordname, 'type':'A', 'ip': address.formatCanonical()})
+            if args.include_additional:
+                if dr['Type'] == 5: # CNAME records
+                    address = DNS_RPC_RECORD_NODE_NAME(dr['Data'])
+                    outdata.append({'name':recordname, 'type':'CNAME', 'ip': address[list(address.fields)[0]].toFqdn() })
+                elif dr['Type'] == 2: # NS records
+                    address = DNS_RPC_RECORD_NODE_NAME(dr['Data'])
+                    outdata.append({'name':recordname, 'type':'NS', 'ip': address[list(address.fields)[0]].toFqdn() })
+                # Helpful reference on record types: https://docs.microsoft.com/en-us/windows/win32/dns/dns-constants
+                # Have seen these following ones in live AD servers, but did not need to parse
+                elif dr['Type'] in [0, 6, 15, 16, 28, 33]: # undefined, SOA, MX, TXT, txt, AAAA, SRV 
+                    pass
+                else:
+                    if args.debug:
+                        print_m('Unexpected record type seen: {}'.format(dr['Type']))
+
             continue
     print_o('Found %d records' % len(outdata))
     with codecs.open('records.csv', 'w', 'utf-8') as outfile:
