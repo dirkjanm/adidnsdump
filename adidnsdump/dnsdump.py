@@ -200,6 +200,9 @@ class DNS_RPC_RECORD_AAAA(Structure):
         ('ipv6Address', '16s'),
     )
 
+    def formatCanonical(self):
+        return socket.inet_ntop(socket.AF_INET6, self['ipv6Address'])
+
 class DNS_RPC_RECORD_SRV(Structure):
     """
     DNS_RPC_RECORD_SRV
@@ -293,6 +296,10 @@ def print_record(record, ts=False):
         print(' - Minimum TTL: %d' %  record_data['dwMinimumTtl'])
         print(' - Primary server: %s' %  record_data['namePrimaryServer'].toFqdn())
         print(' - Zone admin email: %s' %  record_data['zoneAdminEmail'].toFqdn())
+    # AAAA record
+    if record['Type'] == 28:
+        address = DNS_RPC_RECORD_AAAA(record['Data'])
+        print(' - Address: %s' % address.formatCanonical())       
 
 def new_record(rtype, serial):
     nr = DNS_RECORD()
@@ -311,12 +318,16 @@ def print_operation_result(result):
         print_f('LDAP operation failed. Message returned from server: %s %s' %  (result['description'], result['message']))
         return False
 
+# From: https://docs.microsoft.com/en-us/windows/win32/dns/dns-constants
 RECORD_TYPE_MAPPING = {
     0: 'ZERO',
     1: 'A',
     2: 'NS',
     5: 'CNAME',
     6: 'SOA',
+    #15: 'MX',
+    #16: 'TXT',
+    28: 'AAAA',
     33: 'SRV'
 }
 
@@ -464,18 +475,14 @@ def main():
                 print_record(dr, targetentry['attributes']['dNSTombstoned'])
             if dr['Type'] == 1:
                 address = DNS_RPC_RECORD_A(dr['Data'])
-                outdata.append({'name':recordname, 'type':'A', 'ip': address.formatCanonical()})
+                outdata.append({'name':recordname, 'type': RECORD_TYPE_MAPPING[dr['Type']], 'value': address.formatCanonical()})
             if args.include_additional:
-                if dr['Type'] == 5: # CNAME records
+                if dr['Type'] in [a for a in RECORD_TYPE_MAPPING if RECORD_TYPE_MAPPING[a] in ['CNAME', 'NS']]:
                     address = DNS_RPC_RECORD_NODE_NAME(dr['Data'])
-                    outdata.append({'name':recordname, 'type':'CNAME', 'ip': address[list(address.fields)[0]].toFqdn() })
-                elif dr['Type'] == 2: # NS records
-                    address = DNS_RPC_RECORD_NODE_NAME(dr['Data'])
-                    outdata.append({'name':recordname, 'type':'NS', 'ip': address[list(address.fields)[0]].toFqdn() })
-                # Helpful reference on record types: https://docs.microsoft.com/en-us/windows/win32/dns/dns-constants
-                # Have seen these following ones in live AD servers, but did not need to parse
-                elif dr['Type'] in [0, 6, 15, 16, 28, 33]: # undefined, SOA, MX, TXT, txt, AAAA, SRV 
-                    pass
+                    outdata.append({'name':recordname, 'type':RECORD_TYPE_MAPPING[dr['Type']], 'value': address[list(address.fields)[0]].toFqdn()})
+                elif dr['Type'] == 28:
+                    address = DNS_RPC_RECORD_AAAA(dr['Data'])
+                    outdata.append({'name':recordname, 'type':RECORD_TYPE_MAPPING[dr['Type']], 'value': address.formatCanonical()})
                 else:
                     if args.debug:
                         print_m('Unexpected record type seen: {}'.format(dr['Type']))
@@ -483,9 +490,9 @@ def main():
             continue
     print_o('Found %d records' % len(outdata))
     with codecs.open('records.csv', 'w', 'utf-8') as outfile:
-        outfile.write('type,name,ip\n')
+        outfile.write('type,name,value\n')
         for row in outdata:
-            outfile.write('{type},{name},{ip}\n'.format(**row))
+            outfile.write('{type},{name},{value}\n'.format(**row))
 
 if __name__ == '__main__':
     main()
