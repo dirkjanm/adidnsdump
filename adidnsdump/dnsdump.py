@@ -483,7 +483,7 @@ def main():
                 elif dr['Type'] == 28:
                     address = DNS_RPC_RECORD_AAAA(dr['Data'])
                     outdata.append({'name':recordname, 'type':RECORD_TYPE_MAPPING[dr['Type']], 'value': address.formatCanonical()})
-                else:
+                elif dr['Type'] not in [a for a in RECORD_TYPE_MAPPING if RECORD_TYPE_MAPPING[a] in ['A', 'AAAA,' 'CNAME', 'NS']]:
                     if args.debug:
                         print_m('Unexpected record type seen: {}'.format(dr['Type']))
 
