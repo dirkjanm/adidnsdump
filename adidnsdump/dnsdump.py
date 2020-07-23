@@ -299,7 +299,7 @@ def print_record(record, ts=False):
     # AAAA record
     if record['Type'] == 28:
         address = DNS_RPC_RECORD_AAAA(record['Data'])
-        print(' - Address: %s' % address.formatCanonical())       
+        print(' - Address: %s' % address.formatCanonical())
 
 def new_record(rtype, serial):
     nr = DNS_RECORD()
@@ -354,8 +354,6 @@ def main():
     parser.add_argument("--referralhosts", action='store_true', help="Allow passthrough authentication to all referral hosts")
     parser.add_argument("--dcfilter", action='store_true', help="Use an alternate filter to identify DNS record types")
     parser.add_argument("--sslprotocol", type=native_str, help="SSL version for LDAP connection, can be SSLv23, TLSv1, TLSv1_1 or TLSv1_2")
-    parser.add_argument("--include-additional", action='store_true', help="Include additional record types in the output")
-
 
     args = parser.parse_args()
     #Prompt for password if not set
@@ -441,23 +439,30 @@ def main():
             # No permission to view those records
             recordname = targetentry['dn'][3:targetentry['dn'].index(searchtarget)-1]
             if not args.resolve:
-                outdata.append({'name':recordname, 'type':'?', 'ip': '?'})
+                outdata.append({'name':recordname, 'type':'?', 'value': '?'})
                 if args.verbose:
                     print_o('Found hidden record %s' % recordname)
             else:
                 # Resolve A query
                 try:
-                    res = dnsresolver.query('%s.%s.' % (recordname, zone), 'A', tcp=args.dns_tcp)
+                    res = dnsresolver.query('%s.%s.' % (recordname, zone), 'A', tcp=args.dns_tcp, raise_on_no_answer=False)
                 except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.resolver.Timeout, dns.name.EmptyLabel) as e:
                     if args.verbose:
                         print_f(str(e))
                     print_m('Could not resolve node %s (probably no A record assigned to name)' % recordname)
-                    outdata.append({'name':recordname, 'type':'?', 'ip': '?'})
+                    outdata.append({'name':recordname, 'type':'?', 'value': '?'})
                     continue
-                ipv4 = str(res.response.answer[0][0])
+                if len(res.response.answer) == 0:
+                    print_m('Could not resolve node %s (probably no A record assigned to name)' % recordname)
+                    outdata.append({'name':recordname, 'type':'?', 'value': '?'})
+                    continue
                 if args.verbose:
                     print_o('Resolved hidden record %s' % recordname)
-                outdata.append({'name':recordname, 'type':'A', 'ip': ipv4})
+                for answer in res.response.answer:
+                    try:
+                        outdata.append({'name':recordname, 'type':RECORD_TYPE_MAPPING[answer.rdtype], 'value': str(answer[0])})
+                    except KeyError:
+                        print_m('Unexpected record type seen: {}'.format(answer.rdtype))
         else:
             recordname = targetentry['attributes']['name']
             if args.verbose:
@@ -476,16 +481,15 @@ def main():
             if dr['Type'] == 1:
                 address = DNS_RPC_RECORD_A(dr['Data'])
                 outdata.append({'name':recordname, 'type': RECORD_TYPE_MAPPING[dr['Type']], 'value': address.formatCanonical()})
-            if args.include_additional:
-                if dr['Type'] in [a for a in RECORD_TYPE_MAPPING if RECORD_TYPE_MAPPING[a] in ['CNAME', 'NS']]:
-                    address = DNS_RPC_RECORD_NODE_NAME(dr['Data'])
-                    outdata.append({'name':recordname, 'type':RECORD_TYPE_MAPPING[dr['Type']], 'value': address[list(address.fields)[0]].toFqdn()})
-                elif dr['Type'] == 28:
-                    address = DNS_RPC_RECORD_AAAA(dr['Data'])
-                    outdata.append({'name':recordname, 'type':RECORD_TYPE_MAPPING[dr['Type']], 'value': address.formatCanonical()})
-                elif dr['Type'] not in [a for a in RECORD_TYPE_MAPPING if RECORD_TYPE_MAPPING[a] in ['A', 'AAAA,' 'CNAME', 'NS']]:
-                    if args.debug:
-                        print_m('Unexpected record type seen: {}'.format(dr['Type']))
+            if dr['Type'] in [a for a in RECORD_TYPE_MAPPING if RECORD_TYPE_MAPPING[a] in ['CNAME', 'NS']]:
+                address = DNS_RPC_RECORD_NODE_NAME(dr['Data'])
+                outdata.append({'name':recordname, 'type':RECORD_TYPE_MAPPING[dr['Type']], 'value': address[list(address.fields)[0]].toFqdn()})
+            elif dr['Type'] == 28:
+                address = DNS_RPC_RECORD_AAAA(dr['Data'])
+                outdata.append({'name':recordname, 'type':RECORD_TYPE_MAPPING[dr['Type']], 'value': address.formatCanonical()})
+            elif dr['Type'] not in [a for a in RECORD_TYPE_MAPPING if RECORD_TYPE_MAPPING[a] in ['A', 'AAAA,' 'CNAME', 'NS']]:
+                if args.debug:
+                    print_m('Unexpected record type seen: {}'.format(dr['Type']))
 
             continue
     print_o('Found %d records' % len(outdata))
