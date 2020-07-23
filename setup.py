@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='adidnsdump',
-      version='1.2.0',
+      version='1.3.0',
       description='Active Directory Integrated DNS dumping by any authenticated user',
       license='MIT',
       classifiers=[
