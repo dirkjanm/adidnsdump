@@ -200,6 +200,9 @@ class DNS_RPC_RECORD_AAAA(Structure):
         ('ipv6Address', '16s'),
     )
 
+    def formatCanonical(self):
+        return socket.inet_ntop(socket.AF_INET6, self['ipv6Address'])
+
 class DNS_RPC_RECORD_SRV(Structure):
     """
     DNS_RPC_RECORD_SRV
@@ -293,6 +296,10 @@ def print_record(record, ts=False):
         print(' - Minimum TTL: %d' %  record_data['dwMinimumTtl'])
         print(' - Primary server: %s' %  record_data['namePrimaryServer'].toFqdn())
         print(' - Zone admin email: %s' %  record_data['zoneAdminEmail'].toFqdn())
+    # AAAA record
+    if record['Type'] == 28:
+        address = DNS_RPC_RECORD_AAAA(record['Data'])
+        print(' - Address: %s' % address.formatCanonical())       
 
 def new_record(rtype, serial):
     nr = DNS_RECORD()
@@ -311,12 +318,16 @@ def print_operation_result(result):
         print_f('LDAP operation failed. Message returned from server: %s %s' %  (result['description'], result['message']))
         return False
 
+# From: https://docs.microsoft.com/en-us/windows/win32/dns/dns-constants
 RECORD_TYPE_MAPPING = {
     0: 'ZERO',
     1: 'A',
     2: 'NS',
     5: 'CNAME',
     6: 'SOA',
+    #15: 'MX',
+    #16: 'TXT',
+    28: 'AAAA',
     33: 'SRV'
 }
 
@@ -343,6 +354,7 @@ def main():
     parser.add_argument("--referralhosts", action='store_true', help="Allow passthrough authentication to all referral hosts")
     parser.add_argument("--dcfilter", action='store_true', help="Use an alternate filter to identify DNS record types")
     parser.add_argument("--sslprotocol", type=native_str, help="SSL version for LDAP connection, can be SSLv23, TLSv1, TLSv1_1 or TLSv1_2")
+    parser.add_argument("--include-additional", action='store_true', help="Include additional record types in the output")
 
 
     args = parser.parse_args()
@@ -463,13 +475,24 @@ def main():
                 print_record(dr, targetentry['attributes']['dNSTombstoned'])
             if dr['Type'] == 1:
                 address = DNS_RPC_RECORD_A(dr['Data'])
-                outdata.append({'name':recordname, 'type':'A', 'ip': address.formatCanonical()})
+                outdata.append({'name':recordname, 'type': RECORD_TYPE_MAPPING[dr['Type']], 'value': address.formatCanonical()})
+            if args.include_additional:
+                if dr['Type'] in [a for a in RECORD_TYPE_MAPPING if RECORD_TYPE_MAPPING[a] in ['CNAME', 'NS']]:
+                    address = DNS_RPC_RECORD_NODE_NAME(dr['Data'])
+                    outdata.append({'name':recordname, 'type':RECORD_TYPE_MAPPING[dr['Type']], 'value': address[list(address.fields)[0]].toFqdn()})
+                elif dr['Type'] == 28:
+                    address = DNS_RPC_RECORD_AAAA(dr['Data'])
+                    outdata.append({'name':recordname, 'type':RECORD_TYPE_MAPPING[dr['Type']], 'value': address.formatCanonical()})
+                elif dr['Type'] not in [a for a in RECORD_TYPE_MAPPING if RECORD_TYPE_MAPPING[a] in ['A', 'AAAA,' 'CNAME', 'NS']]:
+                    if args.debug:
+                        print_m('Unexpected record type seen: {}'.format(dr['Type']))
+
             continue
     print_o('Found %d records' % len(outdata))
     with codecs.open('records.csv', 'w', 'utf-8') as outfile:
-        outfile.write('type,name,ip\n')
+        outfile.write('type,name,value\n')
         for row in outdata:
-            outfile.write('{type},{name},{ip}\n'.format(**row))
+            outfile.write('{type},{name},{value}\n'.format(**row))
 
 if __name__ == '__main__':
     main()
