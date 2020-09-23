@@ -247,10 +247,15 @@ def get_dns_resolver(server):
     # Is our host an IP? In that case make sure the server IP is used
     # if not assume lookups are working already
     try:
+        if server.startswith('ldap://'):
+            server = server[7:]
+        if server.startswith('ldaps://'):
+            server = server[8:]
         socket.inet_aton(server)
         dnsresolver.nameservers = [server]
     except socket.error:
-        pass
+        print_m('Using System DNS to resolve unknown entries. Make sure resolving your target domain works here or specify an IP'\
+                ' as target host to use that server for queries')
     return dnsresolver
 
 def ldap2domain(ldap):
@@ -429,7 +434,10 @@ def main():
     sfilter = '(objectClass=*)' if not args.dcfilter else '(DC=*)'
     c.extend.standard.paged_search(searchtarget, sfilter, search_scope=LEVEL, attributes=['dnsRecord','dNSTombstoned','name'], paged_size=500, generator=False)
     targetentry = None
-    dnsresolver = get_dns_resolver(args.host)
+    if args.resolve:
+        dnsresolver = get_dns_resolver(args.host)
+    else:
+        dnsresolver = None
     outdata = []
     for targetentry in c.response:
         if targetentry['type'] != 'searchResEntry':
