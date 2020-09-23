@@ -412,13 +412,13 @@ def main():
         forestdnsroot = 'CN=MicrosoftDNS,DC=ForestDnsZones,%s' % forestroot
         zones = get_dns_zones(c, forestdnsroot, args.verbose)
         if len(zones) > 0:
-            print_m('Found %d forest DNS zones:' % len(zones))
+            print_m('Found %d forest DNS zones (dump with --forest):' % len(zones))
             for zone in zones:
                 print('    %s' % zone)
         legacydnsroot = 'CN=MicrosoftDNS,CN=System,%s' % domainroot
         zones = get_dns_zones(c, legacydnsroot, args.verbose)
         if len(zones) > 0:
-            print_m('Found %d legacy DNS zones:' % len(zones))
+            print_m('Found %d legacy DNS zones (dump with --legacy):' % len(zones))
             for zone in zones:
                 print('    %s' % zone)
         return
