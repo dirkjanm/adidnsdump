@@ -277,8 +277,8 @@ def print_record(record, ts=False):
     if record['Type'] == 1:
         address = DNS_RPC_RECORD_A(record['Data'])
         print(' - Address: %s' % address.formatCanonical())
-    # NS record or CNAME record
-    if record['Type'] == 2 or record['Type'] == 5:
+    # NS, CNAME or PTR record
+    if record['Type'] in [2, 5, 12]:
         address = DNS_RPC_RECORD_NODE_NAME(record['Data'])
         # address.dump()
         print(' - Address: %s' %  address['nameNode'].toFqdn())
@@ -330,6 +330,7 @@ RECORD_TYPE_MAPPING = {
     2: 'NS',
     5: 'CNAME',
     6: 'SOA',
+    12: 'PTR',
     #15: 'MX',
     #16: 'TXT',
     28: 'AAAA',
@@ -489,7 +490,7 @@ def main():
             if dr['Type'] == 1:
                 address = DNS_RPC_RECORD_A(dr['Data'])
                 outdata.append({'name':recordname, 'type': RECORD_TYPE_MAPPING[dr['Type']], 'value': address.formatCanonical()})
-            if dr['Type'] in [a for a in RECORD_TYPE_MAPPING if RECORD_TYPE_MAPPING[a] in ['CNAME', 'NS']]:
+            if dr['Type'] in [a for a in RECORD_TYPE_MAPPING if RECORD_TYPE_MAPPING[a] in ['CNAME', 'NS', 'PTR']]:
                 address = DNS_RPC_RECORD_NODE_NAME(dr['Data'])
                 outdata.append({'name':recordname, 'type':RECORD_TYPE_MAPPING[dr['Type']], 'value': address[list(address.fields)[0]].toFqdn()})
             elif dr['Type'] == 28:
