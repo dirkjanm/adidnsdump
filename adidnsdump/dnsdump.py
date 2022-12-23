@@ -353,7 +353,7 @@ def main():
     parser.add_argument("--print-zones", action='store_true', help="Only query all zones on the DNS server, no other modifications are made")
     parser.add_argument("-v", "--verbose", action='store_true', help="Show verbose info")
     parser.add_argument("-d", "--debug", action='store_true', help="Show debug info")
-    parser.add_argument("-r", "--resolve", action='store_true', help="Resolve hidden recoreds via DNS")
+    parser.add_argument("-r", "--resolve", action='store_true', help="Resolve hidden records via DNS")
     parser.add_argument("--dns-tcp", action='store_true', help="Use DNS over TCP")
     parser.add_argument("--include-tombstoned", action='store_true', help="Include tombstoned (deleted) records")
     parser.add_argument("--ssl", action='store_true', help="Connect to LDAP server using SSL")
