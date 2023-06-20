@@ -41,6 +41,10 @@ import dns.name
 import datetime
 from builtins import str
 from future.utils import itervalues, iteritems, native_str
+from scapy.all import *
+import netifaces
+import ipaddress
+
 
 def print_m(string):
     sys.stderr.write('\033[94m[-]\033[0m %s\n' % (string))
@@ -51,6 +55,15 @@ def print_o(string):
 def print_f(string):
     sys.stderr.write('\033[91m[!]\033[0m %s\n' % (string))
 
+
+def check_ip(ip):
+    arpresponse = arping(format(ip), verbose=False)
+    if len(arpresponse[0]) == 0:
+        return True
+    return False
+
+def get_ip_range(interface):
+    return (netifaces.ifaddresses(interface)[netifaces.AF_INET][0]['addr'],netifaces.ifaddresses(interface)[netifaces.AF_INET][0]['netmask'])
 
 
 class DNS_RECORD(Structure):
@@ -360,6 +373,9 @@ def main():
     parser.add_argument("--referralhosts", action='store_true', help="Allow passthrough authentication to all referral hosts")
     parser.add_argument("--dcfilter", action='store_true', help="Use an alternate filter to identify DNS record types")
     parser.add_argument("--sslprotocol", type=native_str, help="SSL version for LDAP connection, can be SSLv23, TLSv1, TLSv1_1 or TLSv1_2")
+    parser.add_argument("-s","--suggest", action="store_true",help="Suggest free IP address on current range")
+    parser.add_argument("-i", "--interface", dest="interface", help="local interface to scan")
+
 
     args = parser.parse_args()
     #Prompt for password if not set
@@ -502,10 +518,24 @@ def main():
 
             continue
     print_o('Found %d records' % len(outdata))
+    assigned_ips = {}
     with codecs.open('records.csv', 'w', 'utf-8') as outfile:
         outfile.write('type,name,value\n')
         for row in outdata:
             outfile.write('{type},{name},{value}\n'.format(**row))
+            if row['type'] == 'A':
+                assigned_ips[row['value']] = row['name']
+    if args.suggest:
+        print_m("Searching for free IPs")
+        (ip,subnet) = get_ip_range(args.interface)
+        for aip in assigned_ips:
+            if ipaddress.ip_address(aip) in list(ipaddress.ip_network(ip + "/" + subnet, False).hosts()):
+                print_m(aip + " is in our subnet")
+                if check_ip(aip):
+                    print_o("Found free IP : " + aip + " ("+assigned_ips[aip]+")")
+                else:
+                    print_f(aip + " is already in use")
+        print_m("Finished checking all IPs")
 
 if __name__ == '__main__':
     main()

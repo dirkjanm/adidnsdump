@@ -1,6 +1,6 @@
 from setuptools import setup
 
-setup(name='adidnsdump',
+setup(name='scrtdnsdump',
       version='1.3.0',
       description='Active Directory Integrated DNS dumping by any authenticated user',
       license='MIT',
@@ -18,8 +18,8 @@ setup(name='adidnsdump',
       author_email='dirkjan.mollema@fox-it.com',
       url='https://github.com/dirkjanm/adidnsdump',
       packages=['adidnsdump'],
-      install_requires=['impacket', 'ldap3>=2.5,!=2.5.2,!=2.5.0,!=2.6'],
+      install_requires=['impacket', 'ldap3>=2.5,!=2.5.2,!=2.5.0,!=2.6', 'scapy', 'netifaces', 'ipaddress'],
       entry_points={
-          'console_scripts': ['adidnsdump=adidnsdump:main']
+          'console_scripts': ['scrtdnsdump=adidnsdump:main']
       }
      )
