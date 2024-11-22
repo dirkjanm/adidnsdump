@@ -33,7 +33,7 @@ import socket
 import codecs
 from struct import unpack, pack
 from impacket.structure import Structure
-from ldap3 import NTLM, Server, Connection, ALL, LEVEL, BASE, MODIFY_DELETE, MODIFY_ADD, MODIFY_REPLACE, Tls
+from ldap3 import NTLM, KERBEROS, SASL, Server, Connection, ALL, LEVEL, BASE, MODIFY_DELETE, MODIFY_ADD, MODIFY_REPLACE, Tls
 import ldap3
 from impacket.ldap import ldaptypes
 import dns.resolver
@@ -345,6 +345,7 @@ def main():
     #Main parameters
     #maingroup = parser.add_argument_group("Main options")
     parser.add_argument("host", type=native_str,metavar='HOSTNAME',help="Hostname/ip or ldap://host:port connection string to connect to")
+    parser.add_argument("-k","--kerberos", action='store_true', help="Use kerberos authentication.")
     parser.add_argument("-u","--user",type=native_str,metavar='USERNAME',help="DOMAIN\\username for authentication.")
     parser.add_argument("-p","--password",type=native_str,metavar='PASSWORD',help="Password or LM:NTLM hash, will prompt if not specified")
     parser.add_argument("--forest", action='store_true', help="Search the ForestDnsZones instead of DomainDnsZones")
@@ -362,8 +363,19 @@ def main():
     parser.add_argument("--sslprotocol", type=native_str, help="SSL version for LDAP connection, can be SSLv23, TLSv1, TLSv1_1 or TLSv1_2")
 
     args = parser.parse_args()
-    #Prompt for password if not set
     authentication = None
+
+    # Handle kerberos option
+    sasl_mechanism = None
+    if args.kerberos:
+        if args.user is not None or args.password is not None:
+            print_f('Kereros authentication is requested. You must not provide username nor password, but obtain a TGT (using kinit for instance).')
+            sys.exit(1)
+
+        authentication = SASL
+        sasl_mechanism = KERBEROS
+
+    #Prompt for password if not set
     if args.user is not None:
         authentication = NTLM
         if not '\\' in args.user:
@@ -385,14 +397,17 @@ def main():
     if args.referralhosts:
         s.allowed_referral_hosts = [('*', True)]
     print_m('Connecting to host...')
-    c = Connection(s, user=args.user, password=args.password, authentication=authentication, auto_referrals=False)
+    c = Connection(s, user=args.user, password=args.password, \
+                    authentication=authentication, sasl_mechanism=sasl_mechanism, \
+                    auto_referrals=False)
+
     print_m('Binding to host')
     # perform the Bind operation
     if not c.bind():
         print_f('Could not bind with specified credentials')
         print_f(c.result)
         sys.exit(1)
-    print_o('Bind OK')
+    print_o(f'Bind OK as {c.extend.standard.who_am_i()}')
     domainroot = s.info.other['defaultNamingContext'][0]
     forestroot = s.info.other['rootDomainNamingContext'][0]
     if args.forest:
