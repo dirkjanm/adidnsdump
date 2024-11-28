@@ -455,7 +455,7 @@ def main():
                 # Resolve A query
                 try:
                     res = dnsresolver.query('%s.%s.' % (recordname, zone), 'A', tcp=args.dns_tcp, raise_on_no_answer=False)
-                except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.resolver.Timeout, dns.name.EmptyLabel) as e:
+                except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.resolver.Timeout, dns.resolver.NoNameservers, dns.name.EmptyLabel) as e:
                     if args.verbose:
                         print_f(str(e))
                     print_m('Could not resolve node %s (probably no A record assigned to name)' % recordname)
