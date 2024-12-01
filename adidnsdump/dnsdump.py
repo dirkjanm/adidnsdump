@@ -360,6 +360,7 @@ def main():
     parser.add_argument("--referralhosts", action='store_true', help="Allow passthrough authentication to all referral hosts")
     parser.add_argument("--dcfilter", action='store_true', help="Use an alternate filter to identify DNS record types")
     parser.add_argument("--sslprotocol", type=native_str, help="SSL version for LDAP connection, can be SSLv23, TLSv1, TLSv1_1 or TLSv1_2")
+    parser.add_argument("-ldap-channel-binding",action="store_true",help="Use LDAP channel binding for LDAP communication (LDAPS only)")
 
     args = parser.parse_args()
     #Prompt for password if not set
@@ -385,7 +386,27 @@ def main():
     if args.referralhosts:
         s.allowed_referral_hosts = [('*', True)]
     print_m('Connecting to host...')
-    c = Connection(s, user=args.user, password=args.password, authentication=authentication, auto_referrals=False)
+    if args.ldap_channel_binding:
+        channel_binding = {}
+        if not hasattr(ldap3, "TLS_CHANNEL_BINDING"):
+            raise Exception(
+                "To use LDAP channel binding, install the patched ldap3 module: pip3 install git+https://github.com/ly4k/ldap3"
+            )
+        channel_binding["channel_binding"] = (
+            ldap3.TLS_CHANNEL_BINDING if args.ldap_channel_binding else None
+        )
+        c = Connection(
+            s,
+            user=args.user,
+            password=args.password,
+            authentication=ldap3.NTLM,
+            auto_referrals=False,
+            **channel_binding
+        )
+    else:
+        c = Connection(
+            s, user=args.user, password=args.password, authentication=authentication
+        )
     print_m('Binding to host')
     # perform the Bind operation
     if not c.bind():
