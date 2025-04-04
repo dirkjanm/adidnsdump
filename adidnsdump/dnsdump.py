@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 ####################
 #
-# Copyright (c) 2019 Dirk-jan Mollema (@_dirkjan)
+# Copyright (c) 2025 Dirk-jan Mollema (@_dirkjan)
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,6 @@
 # Tool to interact with ADIDNS over LDAP
 #
 ####################
-from __future__ import print_function, unicode_literals
 import sys
 import argparse
 import getpass
@@ -39,8 +38,6 @@ from impacket.ldap import ldaptypes
 import dns.resolver
 import dns.name
 import datetime
-from builtins import str
-from future.utils import itervalues, iteritems, native_str
 
 def print_m(string):
     sys.stderr.write('\033[94m[-]\033[0m %s\n' % (string))
@@ -344,9 +341,9 @@ def main():
 
     #Main parameters
     #maingroup = parser.add_argument_group("Main options")
-    parser.add_argument("host", type=native_str,metavar='HOSTNAME',help="Hostname/ip or ldap://host:port connection string to connect to")
-    parser.add_argument("-u","--user",type=native_str,metavar='USERNAME',help="DOMAIN\\username for authentication.")
-    parser.add_argument("-p","--password",type=native_str,metavar='PASSWORD',help="Password or LM:NTLM hash, will prompt if not specified")
+    parser.add_argument("host",metavar='HOSTNAME',help="Hostname/ip or ldap://host:port connection string to connect to")
+    parser.add_argument("-u","--user",metavar='USERNAME',help="DOMAIN\\username for authentication.")
+    parser.add_argument("-p","--password",metavar='PASSWORD',help="Password or LM:NTLM hash, will prompt if not specified")
     parser.add_argument("--forest", action='store_true', help="Search the ForestDnsZones instead of DomainDnsZones")
     parser.add_argument("--legacy", action='store_true', help="Search the System partition (legacy DNS storage)")
     parser.add_argument("--zone", help="Zone to search in (if different than the current domain)")
@@ -359,7 +356,8 @@ def main():
     parser.add_argument("--ssl", action='store_true', help="Connect to LDAP server using SSL")
     parser.add_argument("--referralhosts", action='store_true', help="Allow passthrough authentication to all referral hosts")
     parser.add_argument("--dcfilter", action='store_true', help="Use an alternate filter to identify DNS record types")
-    parser.add_argument("--sslprotocol", type=native_str, help="SSL version for LDAP connection, can be SSLv23, TLSv1, TLSv1_1 or TLSv1_2")
+    parser.add_argument("--sslprotocol", help="SSL version for LDAP connection, can be SSLv23, TLSv1, TLSv1_1 or TLSv1_2")
+    parser.add_argument("--outfile", default='records.csv', help="Output file name/path (default: records.csv)")
 
     args = parser.parse_args()
     #Prompt for password if not set
@@ -501,8 +499,8 @@ def main():
                     print_m('Unexpected record type seen: {}'.format(dr['Type']))
 
             continue
-    print_o('Found %d records' % len(outdata))
-    with codecs.open('records.csv', 'w', 'utf-8') as outfile:
+    print_o(f'Found {len(outdata)} records, saving to {args.outfile}')
+    with codecs.open(args.outfile, 'w', 'utf-8') as outfile:
         outfile.write('type,name,value\n')
         for row in outdata:
             outfile.write('{type},{name},{value}\n'.format(**row))

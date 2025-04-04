@@ -1,6 +1,6 @@
 # Active Directory Integrated DNS dump tool
 
-![Python 2.7 and 3 compatible](https://img.shields.io/badge/python-2.7%2C%203.x-blue.svg)
+![Python 3](https://img.shields.io/badge/python-3.x-blue.svg)
 ![PyPI version](https://img.shields.io/pypi/v/adidnsdump.svg)
 ![License: MIT](https://img.shields.io/pypi/l/adidnsdump.svg)
 
@@ -23,7 +23,7 @@ or
 pip install git+https://github.com/dirkjanm/adidnsdump#egg=adidnsdump
 ```
 
-The tool requires `impacket` and `dnspython` to function. While the tool works with both Python 2 and 3, Python 3 support requires you to install [impacket from GitHub](https://github.com/CoreSecurity/impacket).
+The tool requires `impacket` and `dnspython` to function. 
 
 Installation adds the `adidnsdump` command to your `PATH`. For help, try `adidnsdump -h`.
 The tool can be used both directly from the network and via an implant using proxychains. If using proxychains, make sure to specify the `--dns-tcp` option.
