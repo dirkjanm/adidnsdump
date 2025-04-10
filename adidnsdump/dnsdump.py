@@ -355,6 +355,7 @@ def main():
     parser.add_argument("--include-tombstoned", action='store_true', help="Include tombstoned (deleted) records")
     parser.add_argument("--ssl", action='store_true', help="Connect to LDAP server using SSL")
     parser.add_argument("--referralhosts", action='store_true', help="Allow passthrough authentication to all referral hosts")
+    parser.add_argument("--srv", action='store_true', help="Attempt to resolve SRV records")
     parser.add_argument("--dcfilter", action='store_true', help="Use an alternate filter to identify DNS record types")
     parser.add_argument("--sslprotocol", help="SSL version for LDAP connection, can be SSLv23, TLSv1, TLSv1_1 or TLSv1_2")
     parser.add_argument("--outfile", default='records.csv', help="Output file name/path (default: records.csv)")
@@ -450,7 +451,30 @@ def main():
                 if args.verbose:
                     print_o('Found hidden record %s' % recordname)
             else:
-                # Resolve A query
+                # Determine if this is likely an SRV record by checking naming pattern
+                is_srv = recordname.startswith('_') and '._' in recordname
+                
+                # Try SRV query first if it looks like an SRV record and --srv option is enabled
+                if is_srv and args.srv:
+                    try:
+                        res = dnsresolver.query('%s.%s.' % (recordname, zone), 'SRV', tcp=args.dns_tcp, raise_on_no_answer=False)
+                        if args.verbose:
+                            print_o('Resolved as SRV record: %s' % recordname)
+                        for answer in res.response.answer:
+                            for item in answer:
+                                # SRV records have: priority, weight, port, target
+                                # Only include the target hostname in the output
+                                target = str(item.target)
+                                # Remove trailing dot if present
+                                if target.endswith('.'):
+                                    target = target[:-1]
+                                outdata.append({'name':recordname, 'type':'SRV', 'value': target})
+                        continue
+                    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.resolver.Timeout, dns.resolver.NoNameservers, dns.name.EmptyLabel) as e:
+                        if args.verbose:
+                            print_f(f"SRV lookup failed, trying A record: {str(e)}")
+                
+                # Fall back to A record query if SRV fails or not an SRV pattern
                 try:
                     res = dnsresolver.query('%s.%s.' % (recordname, zone), 'A', tcp=args.dns_tcp, raise_on_no_answer=False)
                 except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.resolver.Timeout, dns.resolver.NoNameservers, dns.name.EmptyLabel) as e:
@@ -494,7 +518,16 @@ def main():
             elif dr['Type'] == 28:
                 address = DNS_RPC_RECORD_AAAA(dr['Data'])
                 outdata.append({'name':recordname, 'type':RECORD_TYPE_MAPPING[dr['Type']], 'value': address.formatCanonical()})
-            elif dr['Type'] not in [a for a in RECORD_TYPE_MAPPING if RECORD_TYPE_MAPPING[a] in ['A', 'AAAA,' 'CNAME', 'NS']]:
+            # Added SRV record handling
+            elif dr['Type'] == 33 and args.srv:  # Only process SRV records if --srv option is enabled
+                srv_data = DNS_RPC_RECORD_SRV(dr['Data'])
+                # Only include target hostname as requested
+                target_host = srv_data['nameTarget'].toFqdn()
+                # Remove trailing dot if present
+                if target_host.endswith('.'):
+                    target_host = target_host[:-1]
+                outdata.append({'name':recordname, 'type':RECORD_TYPE_MAPPING[dr['Type']], 'value': target_host})
+            elif dr['Type'] not in [a for a in RECORD_TYPE_MAPPING if RECORD_TYPE_MAPPING[a] in ['A', 'AAAA', 'CNAME', 'NS', 'SRV'] or (RECORD_TYPE_MAPPING[a] == 'SRV' and not args.srv)]:
                 if args.debug:
                     print_m('Unexpected record type seen: {}'.format(dr['Type']))
 
