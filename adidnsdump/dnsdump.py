@@ -255,6 +255,11 @@ def get_dns_resolver(server):
                 ' as target host to use that server for queries')
     return dnsresolver
 
+def dns_query(dnsresolver, name, qtype, tcp=False):
+    # dnspython 2.x renamed Resolver.query() to Resolver.resolve()
+    query = getattr(dnsresolver, 'resolve', None) or dnsresolver.query
+    return query(name, qtype, tcp=tcp, raise_on_no_answer=False)
+
 def ldap2domain(ldap):
     return re.sub(',DC=', '.', ldap[ldap.find('DC='):], flags=re.I)[3:]
 
@@ -424,6 +429,11 @@ def main():
     if not c.bind():
         print_f('Could not bind with specified credentials')
         print_f(c.result)
+        if '80090346' in str(c.result):
+            print_f('This usually means the target DC has the "LDAP channel binding" (LDAP signing/CBT) policy enabled. '
+                    'Authenticate over LDAPS with channel binding: '
+                    'adidnsdump --ssl --ldap-channel-binding -u DOMAIN\\user -p pass <host> '
+                    '(requires the patched ldap3 module: pip3 install git+https://github.com/ly4k/ldap3)')
         sys.exit(1)
     print_o(f'Bind OK as {c.extend.standard.who_am_i()}')
     domainroot = s.info.other['defaultNamingContext'][0]
@@ -491,7 +501,7 @@ def main():
                 # Try SRV query first if it looks like an SRV record and --srv option is enabled
                 if is_srv and args.srv:
                     try:
-                        res = dnsresolver.query('%s.%s.' % (recordname, zone), 'SRV', tcp=args.dns_tcp, raise_on_no_answer=False)
+                        res = dns_query(dnsresolver, '%s.%s.' % (recordname, zone), 'SRV', tcp=args.dns_tcp)
                         if args.verbose:
                             print_o('Resolved as SRV record: %s' % recordname)
                         for answer in res.response.answer:
@@ -510,7 +520,7 @@ def main():
                 
                 # Fall back to A record query if SRV fails or not an SRV pattern
                 try:
-                    res = dnsresolver.query('%s.%s.' % (recordname, zone), 'A', tcp=args.dns_tcp, raise_on_no_answer=False)
+                    res = dns_query(dnsresolver, '%s.%s.' % (recordname, zone), 'A', tcp=args.dns_tcp)
                 except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.resolver.Timeout, dns.resolver.NoNameservers, dns.name.EmptyLabel) as e:
                     if args.verbose:
                         print_f(str(e))
