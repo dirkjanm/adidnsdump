@@ -383,7 +383,12 @@ def main():
     if args.referralhosts:
         s.allowed_referral_hosts = [('*', True)]
     print_m('Connecting to host...')
-    c = Connection(s, user=args.user, password=args.password, authentication=authentication, auto_referrals=False)
+    # When using SSL with NTLM, send Channel Binding Tokens (CBT) to satisfy
+    # DCs that enforce LDAP channel binding (error 80090346 / SEC_E_BAD_BINDINGS)
+    connargs = dict(user=args.user, password=args.password, authentication=authentication, auto_referrals=False)
+    if args.ssl or args.sslprotocol:
+        connargs['channel_binding'] = ldap3.TLS_CHANNEL_BINDING
+    c = Connection(s, **connargs)
     print_m('Binding to host')
     # perform the Bind operation
     if not c.bind():
