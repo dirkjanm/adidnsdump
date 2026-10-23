@@ -15,7 +15,7 @@ setup(name='adidnsdump',
       author_email='dirkjan@dirkjanm.io',
       url='https://github.com/dirkjanm/adidnsdump',
       packages=['adidnsdump'],
-      install_requires=['impacket', 'ldap3>=2.5,!=2.5.2,!=2.5.0,!=2.6'],
+      install_requires=['impacket', 'ldap3>=2.5,!=2.5.2,!=2.5.0,!=2.6', 'ldap3-ad-auth>=0.1.0'],
       entry_points={
           'console_scripts': ['adidnsdump=adidnsdump:main']
       }

@@ -38,6 +38,9 @@ from impacket.ldap import ldaptypes
 import dns.resolver
 import dns.name
 import datetime
+import os
+from impacket.krb5.ccache import CCache
+from ldap3_ad_auth import bind_kerberos, bind_ntlm
 
 def print_m(string):
     sys.stderr.write('\033[94m[-]\033[0m %s\n' % (string))
@@ -354,6 +357,9 @@ def main():
     parser.add_argument("--dns-tcp", action='store_true', help="Use DNS over TCP")
     parser.add_argument("--include-tombstoned", action='store_true', help="Include tombstoned (deleted) records")
     parser.add_argument("--ssl", action='store_true', help="Connect to LDAP server using SSL")
+    parser.add_argument("-k", "--kerberos", action='store_true', help="Authenticate with Kerberos")
+    parser.add_argument("-dc-ip", help="KDC IP address for Kerberos")
+    parser.add_argument("-aesKey", help="AES key for Kerberos authentication")
     parser.add_argument("--referralhosts", action='store_true', help="Allow passthrough authentication to all referral hosts")
     parser.add_argument("--dcfilter", action='store_true', help="Use an alternate filter to identify DNS record types")
     parser.add_argument("--sslprotocol", help="SSL version for LDAP connection, can be SSLv23, TLSv1, TLSv1_1 or TLSv1_2")
@@ -363,11 +369,11 @@ def main():
     #Prompt for password if not set
     authentication = None
     if args.user is not None:
-        authentication = NTLM
+        authentication = ldap3.SASL if args.kerberos else NTLM
         if not '\\' in args.user:
             print_f('Username must include a domain, use: DOMAIN\\username')
             sys.exit(1)
-        if args.password is None:
+        if args.password is None and not (args.kerberos and (os.environ.get('KRB5CCNAME') or args.aesKey)):
             args.password = getpass.getpass()
 
     # define the server and the connection
@@ -383,12 +389,25 @@ def main():
     if args.referralhosts:
         s.allowed_referral_hosts = [('*', True)]
     print_m('Connecting to host...')
-    c = Connection(s, user=args.user, password=args.password, authentication=authentication, auto_referrals=False)
+    c = Connection(s, user=args.user, password=args.password, authentication=authentication,
+                   sasl_mechanism=ldap3.KERBEROS if args.kerberos else None, auto_referrals=False)
     print_m('Binding to host')
     # perform the Bind operation
-    if not c.bind():
-        print_f('Could not bind with specified credentials')
-        print_f(c.result)
+    try:
+        if args.kerberos:
+            domain, username = args.user.split('\\', 1)
+            tgt = tgs = None
+            if os.environ.get('KRB5CCNAME'):
+                domain, username, tgt, tgs = CCache.parseFile(domain, username, 'ldap/%s' % args.host)
+            bind_kerberos(c, domain=domain, username=username, hostname=args.host,
+                          kdc=args.dc_ip or domain, password=args.password or '',
+                          aes_key=args.aesKey or '', tgt=tgt, tgs=tgs)
+        elif args.user:
+            bind_ntlm(c)
+        elif not c.bind():
+            raise RuntimeError('anonymous bind failed')
+    except Exception as exc:
+        print_f('Could not bind with specified credentials: %s' % exc)
         sys.exit(1)
     print_o('Bind OK')
     domainroot = s.info.other['defaultNamingContext'][0]
